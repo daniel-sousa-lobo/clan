@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "ConsoleClan": {
+      "commandName": "Project",
+      "commandLineArgs": "fileName=\"C:\\Downloads\\clan\" key=home"
+    }
+  }
+}
