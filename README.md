@@ -1,0 +1,2 @@
+# clan
+Clash of Clans
