@@ -2,6 +2,7 @@
 {
 	internal class Battle
 	{
+		public static readonly int MaximumPositionDifference = 10;
 		public int Ordinal { get; }
 		public DateTimeOffset StartTime { get; }
 		public int Stars { get; set; }
@@ -23,10 +24,11 @@
 
 		private void CalculateBattlePenalty()
 		{
+			Penalty = 0;
 			var positionDifference = Math.Abs(EnemyMapPosition - MapPosition);
-			if (positionDifference > 10)
+			if (positionDifference > MaximumPositionDifference)
 			{
-				Penalty = positionDifference / 5;
+				Penalty = positionDifference / MaximumPositionDifference;
 			}
 			else
 			{

@@ -4,6 +4,6 @@
 	{
 		public DateTimeOffset StartTime { get; set; }
 		public bool IsLeague { get; set; } = false;
-		public List<int?> Stars { get; set; } = new();
+		public List<Battle?> Battles { get; set; } = new();
 	}
 }

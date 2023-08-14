@@ -2,7 +2,7 @@
   "profiles": {
     "ConsoleClan": {
       "commandName": "Project",
-      "commandLineArgs": "fileName=\"C:\\Downloads\\clan.csv\" key=office"
+      "commandLineArgs": "fileName=\"clan.csv\" key=office"
     }
   }
 }

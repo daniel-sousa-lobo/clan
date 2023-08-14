@@ -10,5 +10,7 @@
 		public int Duration { get; set; }
 		public int Order { get; set; }
 		public int Stars { get; set; }
+		public int MapPosition { get; internal set; }
+		public int EnemyMapPosition { get; internal set; }
 	}
 }

@@ -51,7 +51,7 @@ namespace ConsoleClan
 		public async Task ProcessAsync(AuthenticationTokeReference authenticationTokeReference, string? fileName)
 		{
 			httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
-				authenticationTokeReference == AuthenticationTokeReference.Office?
+				authenticationTokeReference == AuthenticationTokeReference.Office ?
 				"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiIsImtpZCI6IjI4YTMxOGY3LTAwMDAtYTFlYi03ZmExLTJjNzQzM2M2Y2NhNSJ9.eyJpc3MiOiJzdXBlcmNlbGwiLCJhdWQiOiJzdXBlcmNlbGw6Z2FtZWFwaSIsImp0aSI6ImY4YzJjOTg0LTA1NjItNDA5Mi1iMTIyLTBjZTBhNjIzNGIzMyIsImlhdCI6MTY3MDk1MzU0Mywic3ViIjoiZGV2ZWxvcGVyLzRjZmEzY2FhLTQyY2EtNDg3YS00YzUxLTgzZGZkZWJiNWIzNyIsInNjb3BlcyI6WyJjbGFzaCJdLCJsaW1pdHMiOlt7InRpZXIiOiJkZXZlbG9wZXIvc2lsdmVyIiwidHlwZSI6InRocm90dGxpbmcifSx7ImNpZHJzIjpbIjE5NS4yMy4xOTguMjM5Il0sInR5cGUiOiJjbGllbnQifV19.jd1Yv3NerkMRXF6IuhRJY5RRFarlYXSdv3h31WQ6zHQSxgFUtXq5vRRAElgBzyHW9B76mRFX9OYZhe1by7TAeA" :
 				"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiIsImtpZCI6IjI4YTMxOGY3LTAwMDAtYTFlYi03ZmExLTJjNzQzM2M2Y2NhNSJ9.eyJpc3MiOiJzdXBlcmNlbGwiLCJhdWQiOiJzdXBlcmNlbGw6Z2FtZWFwaSIsImp0aSI6ImI1Y2Q0OWRhLTgxNDAtNDdkNy05MjhiLWM5MmU1OThhZjhhNSIsImlhdCI6MTY2NzIyODIwNCwic3ViIjoiZGV2ZWxvcGVyLzRjZmEzY2FhLTQyY2EtNDg3YS00YzUxLTgzZGZkZWJiNWIzNyIsInNjb3BlcyI6WyJjbGFzaCJdLCJsaW1pdHMiOlt7InRpZXIiOiJkZXZlbG9wZXIvc2lsdmVyIiwidHlwZSI6InRocm90dGxpbmcifSx7ImNpZHJzIjpbIjk0LjYyLjcyLjMyIl0sInR5cGUiOiJjbGllbnQifV19.QKzT4hKQqmt_xQwaDVN6cVQVVHOz9yeOp7NLDKA6a9JCe-hbseMSFJatswg5NUixxLEoHwrsbpwp0py_KZ-R_A"
 				);
@@ -112,10 +112,6 @@ namespace ConsoleClan
 				playerScores.Add(playerScore);
 				playerScore.Donations = player.Donations;
 				playerScore.DonationsReceived = player.DonationsReceived;
-				if (playerScore.Donations - playerScore.DonationsReceived < 0)
-				{
-					playerScore.Penalty = (playerScore.DonationsReceived - playerScore.Donations) / 250;
-				}
 
 				var playerId = player.Id;
 				var attacks = await attackRepository.SelectAsync(playerId, warIds);
@@ -133,34 +129,25 @@ namespace ConsoleClan
 
 				foreach (var warAttack in warAttacks)
 				{
-					var startTime = warAttack.War.StartTime;
-					var isLeague = leagueWars.Any(leagueWar => leagueWar.WarId == warAttack.War.Id);
+					var war = warAttack.War;
+					var startTime = war.StartTime;
+					var isLeague = leagueWars.Any(leagueWar => leagueWar.WarId == war.Id);
 					var playerAttack = playerScore.PlayerAttacks.FirstOrDefault(playerAttack => playerAttack.StartTime == startTime);
-					var stars = warAttack.Attack?.Stars;
 					if (playerAttack == null)
 					{
 						playerAttack = new PlayerAttack { StartTime = startTime, IsLeague = isLeague };
 						playerScore.PlayerAttacks.Add(playerAttack);
-						playerAttack.Stars.Add(warAttack.Attack?.Stars);
-						if (!isLeague)
-						{
-							playerAttack.Stars.Add(null);
-						}
+					}
+					var attack = warAttack.Attack;
+					if (attack != null)
+					{
+						playerAttack.Battles.Add(new Battle(attack.Order, war.StartTime, attack.Stars, attack.MapPosition, attack.EnemyMapPosition, isLeague ? BattleTypeReference.League : BattleTypeReference.War));
 					}
 					else
 					{
-						playerAttack.Stars[1] = warAttack.Attack?.Stars;
-					}
-					if (stars == null)
-					{
-						playerScore.Penalty += 1;
-					}
-					else
-					{
-						playerScore.Stars += stars.Value;
+						playerAttack.Battles.Add(null);
 					}
 				}
-				playerScore.Score = playerScore.Stars - playerScore.Penalty;
 			}
 
 			if (fileName == null)
@@ -175,8 +162,8 @@ namespace ConsoleClan
 				csv.WriteField("Pontos");
 				csv.WriteField("Doações");
 				csv.WriteField("Doações Recebidas");
-				csv.WriteField("Estrelas");
-				csv.WriteField("Penalização");
+				csv.WriteField("Total Estrelas");
+				csv.WriteField("Total Penalização");
 
 				var playerAttacks = playerScores
 					.SelectMany(playerScore => playerScore.PlayerAttacks)
@@ -188,46 +175,60 @@ namespace ConsoleClan
 					.ToList();
 
 				Dictionary<DateTimeOffset, int> attackCount = new();
+				int countField = 0;
 				foreach (var startTime in startTimes)
 				{
+					var isLeague = playerAttacks.Any(playerAttack => playerAttack.StartTime == startTime && playerAttack.IsLeague);
 					int numberOfAttacks = 1;
 					var date = startTime.ToString("dd-MM-yyyy");
-					csv.WriteField($"Estrelas {date} 1º");
-					if (playerAttacks.Any(playerAttack => playerAttack.StartTime == startTime && !playerAttack.IsLeague))
+					var endColumnName = isLeague ? " Liga" : " 1º";
+					csv.WriteField($"Estrelas {date}{endColumnName}");
+					csv.WriteField($"Posição {++countField}");
+					csv.WriteField($"Inimigo {countField}");
+					csv.WriteField($"Penalização {countField}");
+					if (!isLeague)
 					{
-						csv.WriteField($"Estrelas {date} 2º");
+						endColumnName = " 2º";
+						csv.WriteField($"Estrelas {date}{endColumnName}");
+						csv.WriteField($"Posição {++countField}");
+						csv.WriteField($"Inimigo {countField}");
+						csv.WriteField($"Penalização {countField}");
 						numberOfAttacks = 2;
 					}
 					attackCount.Add(startTime, numberOfAttacks);
 				}
 				csv.NextRecord();
-				foreach (var playerScore in playerScores.OrderByDescending(playerScore => playerScore.Score))
+				foreach (var playerScore in playerScores.OrderByDescending(playerScore => playerScore.TotalScore))
 				{
 					csv.WriteField(playerScore.Name);
-					csv.WriteField(playerScore.Score);
+					csv.WriteField(playerScore.TotalScore);
 					csv.WriteField(playerScore.Donations);
 					csv.WriteField(playerScore.DonationsReceived);
-					csv.WriteField(playerScore.Stars);
-					csv.WriteField(playerScore.Penalty);
+					csv.WriteField(playerScore.TotalStars);
+					csv.WriteField(playerScore.TotalPenalty);
 					foreach (var startTime in startTimes)
 					{
-						var stars = playerScore.PlayerAttacks.Where(playerAttack => playerAttack.StartTime == startTime).FirstOrDefault()?.Stars;
+						var battles = playerScore.PlayerAttacks.Where(playerAttack => playerAttack.StartTime == startTime).FirstOrDefault()?.Battles;
 						var count = attackCount[startTime];
 						for (int index = 0; index < count; ++index)
 						{
 							var star = "";
-							if(stars != null)
+							var battle = battles?.ElementAtOrDefault(index);
+							if (battle != null)
 							{
-								if (stars[index] == null)
+								if (battle == null)
 								{
 									star = "Não atacou";
 								}
 								else
 								{
-									star = stars[index].ToString();
+									star = battle.Stars.ToString();
 								}
 							}
 							csv.WriteField(star);
+							csv.WriteField($"{battle?.MapPosition}");
+							csv.WriteField($"{battle?.EnemyMapPosition}");
+							csv.WriteField($"{battle?.Penalty}");
 						}
 					}
 					csv.NextRecord();
@@ -400,13 +401,12 @@ namespace ConsoleClan
 					{
 						continue;
 					}
-					await UpsertAttackAsync(atack, war);
 					var enemyMember = enemyClan.members.First(member => member.tag == atack.defenderTag);
-					if (enemyMember.mapPosition == null || member.mapPosition == null || modelWar.preparationStartTime == null)
+					await UpsertAttackAsync(atack, war, member, enemyMember);
+					if (enemyMember.mapPosition != null && member.mapPosition != null && modelWar.preparationStartTime != null)
 					{
-						continue;
+						memberScore.Battles.Add(new Battle(++index, modelWar.startTime, atack.stars, member.mapPosition.Value, enemyMember.mapPosition.Value, BattleTypeReference.League));
 					}
-					memberScore.Battles.Add(new Battle(++index, modelWar.startTime, atack.stars, member.mapPosition.Value, enemyMember.mapPosition.Value, BattleTypeReference.League));
 				}
 			}
 			return true;
@@ -426,7 +426,7 @@ namespace ConsoleClan
 			}
 		}
 
-		private async Task UpsertAttackAsync(Models.Attack modelAtack, War war)
+		private async Task UpsertAttackAsync(Models.Attack modelAtack, War war, Member member, Member enemyMember)
 		{
 			var player = (await playerRepository.SelectAsync(new[] { modelAtack.attackerTag })).FirstOrDefault();
 			if (player == null)
@@ -444,7 +444,9 @@ namespace ConsoleClan
 					Order = modelAtack.order,
 					PlayerId = player.Id,
 					Stars = modelAtack.stars,
-					WarId = war.Id
+					WarId = war.Id,
+					MapPosition = member.mapPosition ?? -1,
+					EnemyMapPosition = enemyMember.mapPosition ?? -1
 				};
 				await attackRepository.InsertAsync(attack);
 			}
@@ -456,6 +458,8 @@ namespace ConsoleClan
 					attack.Duration != modelAtack.duration ||
 					attack.Order != modelAtack.order ||
 					attack.Stars != modelAtack.stars ||
+					attack.MapPosition != member.mapPosition ||
+					attack.EnemyMapPosition != enemyMember.mapPosition ||
 					attack.WarId != war.Id)
 				{
 					attack.DefenderTag = modelAtack.defenderTag;
@@ -463,6 +467,8 @@ namespace ConsoleClan
 					attack.Duration = modelAtack.duration;
 					attack.Order = modelAtack.order;
 					attack.Stars = modelAtack.stars;
+					attack.MapPosition = member.mapPosition ?? -1;
+					attack.EnemyMapPosition = enemyMember.mapPosition ?? -1;
 					attack.WarId = war.Id;
 					await attackRepository.UpdateAsync(attack);
 				}
